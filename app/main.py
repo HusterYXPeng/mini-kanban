@@ -4,6 +4,8 @@ from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
 
+from app.cards import router as cards_router
+from app.columns import router as columns_router
 from app.database import get_database_url, init_db, make_engine, make_session_factory
 
 
@@ -28,6 +30,8 @@ def create_app(database_url: str | None = None) -> FastAPI:
     def health() -> dict[str, str]:
         return {"status": "ok"}
 
+    app.include_router(columns_router)
+    app.include_router(cards_router)
     return app
 
 
