@@ -1,4 +1,4 @@
-"""Card create, list, fetch, update, and delete routes."""
+"""Card create, list, fetch, update, move, and delete routes."""
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy import select
@@ -7,7 +7,7 @@ from sqlalchemy.orm import Session
 from app import ordering
 from app.deps import get_session
 from app.models import Card, Column, utc_now_iso
-from app.schemas import CardCreate, CardRead, CardUpdate
+from app.schemas import CardCreate, CardMove, CardRead, CardUpdate
 
 router = APIRouter(tags=["cards"])
 
@@ -78,6 +78,28 @@ def update_card(
         changed = True
     if changed:
         card.updated_at = utc_now_iso()
+    session.commit()
+    session.refresh(card)
+    return card
+
+
+@router.post("/cards/{card_id}/move", response_model=CardRead)
+def move_card(
+    card_id: int,
+    payload: CardMove,
+    session: Session = Depends(get_session),
+) -> Card:
+    """Move a card to an index in a column and pack the affected positions.
+
+    `position` is the index among the other cards in `column_id`. The move and
+    the position rewrite commit together. A failure while packing rolls the
+    move back.
+    """
+    card = _get_card(session, card_id)
+    if session.get(Column, payload.column_id) is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Column not found")
+    card.updated_at = utc_now_iso()
+    ordering.move_card(session, card, payload.column_id, payload.position)
     session.commit()
     session.refresh(card)
     return card

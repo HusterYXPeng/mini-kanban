@@ -37,6 +37,14 @@ class ColumnUpdate(BaseModel):
         return _reject_null_title(value)
 
 
+class ColumnMove(BaseModel):
+    """Board index for a column. Any field other than `position` is rejected."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    position: int = Field(ge=0)
+
+
 class ColumnRead(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
@@ -72,6 +80,15 @@ class CardUpdate(BaseModel):
     @classmethod
     def title_cannot_be_null(cls, value: str | None) -> str | None:
         return _reject_null_title(value)
+
+
+class CardMove(BaseModel):
+    """Destination column and index. Any other field is rejected."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    column_id: int
+    position: int = Field(ge=0)
 
 
 class CardRead(BaseModel):

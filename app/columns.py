@@ -1,13 +1,13 @@
-"""Column create, list, fetch, update, and delete routes."""
+"""Column create, list, fetch, update, move, and delete routes."""
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
+from app import ordering
 from app.deps import get_session
 from app.models import Column, utc_now_iso
-from app.ordering import next_column_position
-from app.schemas import ColumnCreate, ColumnRead, ColumnUpdate
+from app.schemas import ColumnCreate, ColumnMove, ColumnRead, ColumnUpdate
 
 router = APIRouter(tags=["columns"])
 
@@ -17,7 +17,7 @@ def create_column(payload: ColumnCreate, session: Session = Depends(get_session)
     """Create a column. A missing position appends it to the board."""
     position = payload.position
     if position is None:
-        position = next_column_position(session)
+        position = ordering.next_column_position(session)
     column = Column(title=payload.title, position=position)
     session.add(column)
     session.commit()
@@ -49,6 +49,26 @@ def update_column(
     if "title" in payload.model_fields_set:
         column.title = payload.title
         column.updated_at = utc_now_iso()
+    session.commit()
+    session.refresh(column)
+    return column
+
+
+@router.post("/columns/{column_id}/move", response_model=ColumnRead)
+def move_column(
+    column_id: int,
+    payload: ColumnMove,
+    session: Session = Depends(get_session),
+) -> Column:
+    """Move a column to a board index and pack every column position.
+
+    `position` is the index among the other columns. The move and the position
+    rewrite commit together. A failure while packing rolls the move back.
+    Cards stay in place.
+    """
+    column = _get_column(session, column_id)
+    column.updated_at = utc_now_iso()
+    ordering.move_column(session, column, payload.position)
     session.commit()
     session.refresh(column)
     return column
